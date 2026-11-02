@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rastreador Macro do Dólar</title>
+<style>
+:root{--bg:#f5f6f2;--fg:#17272c;--mut:#66767a;--ln:#d6dbd5;--up:#1b8a4a;--dn:#c4382d;--ix:#1d5fd1;--gr:#9aa5a3;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a1d;--fg:#e8eeee;--mut:#8da0a3;--ln:#24363a;--up:#3ccf80;--dn:#ff6b5e;--ix:#6aa6ff;--gr:#6f8386;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1a1d;--fg:#e8eeee;--mut:#8da0a3;--ln:#24363a;--up:#3ccf80;--dn:#ff6b5e;--ix:#6aa6ff;--gr:#6f8386;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+h1{font:600 22px/1.2 Georgia,"Iowan Old Style",serif;margin:0 0 4px}
+h2{font:600 16px/1.3 Georgia,serif;margin:0 0 8px}
+section{border-top:1px solid var(--ln);padding:16px 0}
+.mut{color:var(--mut);font-size:13px;margin:0}
+#big{font:600 64px/1 Georgia,"Iowan Old Style",serif;letter-spacing:-1px}
+#lab{font-weight:600;font-size:18px;margin-top:6px}
+.up{color:var(--up)}.dn{color:var(--dn)}.ne{color:var(--mut)}
+svg{display:block;width:100%;height:auto}
+.lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mut);margin-top:6px}
+.lg i{display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:middle}
+.row{display:flex;gap:16px;flex-wrap:wrap}
+label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+input,textarea{font:inherit;color:var(--fg);background:transparent;border:1px solid var(--ln);border-radius:6px;padding:6px 8px}
+input[type=number]{width:84px}
+textarea{width:100%;box-sizing:border-box;font:12px/1.4 ui-monospace,Menlo,monospace}
+button{font:inherit;font-weight:600;color:var(--bg);background:var(--fg);border:0;border-radius:6px;padding:9px 16px;margin-top:8px;cursor:pointer}
+.dr{display:grid;grid-template-columns:1fr 64px 62px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln);font-size:14px}
+.dr input{width:100%;box-sizing:border-box;padding:4px 6px}
+.dr b{text-align:right;font-variant-numeric:tabular-nums}
+.hd{font-size:12px;color:var(--mut)}
+.hd span:not(:first-child){text-align:right}
+table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+th{font-weight:600;font-size:12px;color:var(--mut);text-align:right;padding:6px 4px;border-bottom:1px solid var(--ln)}
+th:first-child,td:first-child{text-align:left}
+td{text-align:right;padding:6px 4px;border-bottom:1px solid var(--ln)}
+td:first-child{font-weight:600}
+#cmsg{font-size:13px;margin:8px 0 0}
+.nw{padding:8px 0;border-bottom:1px solid var(--ln);font-size:14px}.nw a{color:var(--ix)}
+#msg{font-size:13px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<main>
+<h1>Rastreador Macro do Dólar</h1>
+<p class="mut" id="src"></p>
+
+<section>
+<div id="big"></div>
+<div id="lab"></div>
+<p class="mut" id="sub"></p>
+</section>
+
+<section>
+<svg id="ch" viewBox="0 0 360 200" role="img" aria-label="Gráfico do índice macro"></svg>
+<div class="lg"><span><i style="background:var(--ix)"></i>Rastro do macro</span><span><i style="background:var(--up)"></i>Limite de alta</span><span><i style="background:var(--dn)"></i>Limite de baixa</span><span id="lgb"><i style="background:var(--gr)"></i>USD/BRL</span></div>
+</section>
+
+<section>
+<div class="row">
+<label>Janela (dias)<input id="win" type="number" value="60" min="10" max="250"></label>
+<label>Limite do índice<input id="thr" type="number" value="0.5" step="0.1" min="0.1"></label>
+</div>
+</section>
+
+<section>
+<h2>Drivers e pesos</h2>
+<div class="dr hd"><span>Driver</span><span>Peso</span><span>Contribuição</span></div>
+<div id="tb"></div>
+</section>
+
+<section>
+<h2>Notícias globais</h2>
+<p class="mut">Classificação automática do impacto no dólar. Pode errar, use como contexto.</p>
+<div id="nw"><p class="mut">As manchetes aparecem após a primeira atualização automática.</p></div>
+</section>
+
+<section>
+<h2>Curva de juros futuros (DI)</h2>
+<p class="mut" id="csrc"></p>
+<svg id="cc" viewBox="0 0 360 160" role="img" aria-label="Curva de juros futuros"></svg>
+<div class="lg"><span><i style="background:var(--ix)"></i>Hoje</span><span><i style="background:var(--gr)"></i>1 mês atrás</span></div>
+<div style="overflow-x:auto;margin-top:8px"><table id="ct"></table></div>
+<p class="mut" id="cslope" style="margin-top:8px"></p>
+<p class="mut" style="margin-top:12px">Cole o CSV com vencimento e a taxa (% a.a.) de hoje, de 1 dia, 1 semana e 1 mês atrás.</p>
+<textarea id="ccsv" rows="6" spellcheck="false"></textarea>
+<button id="cap">Aplicar curva</button>
+<p id="cmsg"></p>
+</section>
+
+<section>
+<h2>Seus dados</h2>
+<p class="mut">Cole uma tabela CSV com a coluna data e os preços diários de cada ativo, com os cabeçalhos da lista acima. A coluna USDBRL é opcional e serve para comparar.</p>
+<textarea id="csv" rows="6" spellcheck="false"></textarea>
+<button id="ap">Aplicar dados</button>
+<p id="msg"></p>
+</section>
+
+<p class="mut">Ferramenta de apoio à análise, sem recomendação de investimento. O índice mede pressão macro, não o melhor momento de entrada.</p>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const NM={DXY:"DXY (dólar global)",US10Y:"Juros EUA 10 anos",VIX:"VIX",USDMXN:"USD/MXN",USDZAR:"USD/ZAR",CDS:"CDS Brasil 5 anos",DIFJUROS:"Diferencial de juros BR-EUA",IBOV:"Ibovespa",MINERIO:"Minério de ferro",BRENT:"Petróleo Brent",SOJA:"Soja",FLUXO:"Fluxo estrangeiro B3"};
+const K=Object.keys(NM);
+const SG={DXY:1,US10Y:1,VIX:1,USDMXN:1,USDZAR:1,CDS:1,DIFJUROS:-1,IBOV:-1,MINERIO:-1,BRENT:-1,SOJA:-1,FLUXO:-1};
+const W={DXY:1.5,US10Y:1,VIX:1,USDMXN:1,USDZAR:.5,CDS:1.5,DIFJUROS:1,IBOV:1,MINERIO:1,BRENT:.5,SOJA:.5,FLUXO:1};
+let rows=[],demo=true;
+
+function genDemo(){
+  let s=11;const r=()=>{s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+  const n=()=>Math.sqrt(-2*Math.log(r()+1e-9))*Math.cos(6.2832*r());
+  const dates=[];let d=new Date(Date.UTC(2026,10,2));
+  while(dates.length<300){if(d.getUTCDay()%6)dates.push(d.toISOString().slice(0,10));d.setUTCDate(d.getUTCDate()-1)}
+  dates.reverse();
+  const lv={};K.concat("USDBRL").forEach(k=>lv[k]=100);
+  let g=0;const out=["data,"+K.join(",")+",USDBRL"];
+  dates.forEach(dt=>{
+    g=.92*g+.4*n();
+    K.forEach(k=>lv[k]+=SG[k]*.5*g+.8*n());
+    lv.USDBRL+=.6*g+.7*n();
+    out.push(dt+","+K.concat("USDBRL").map(k=>lv[k].toFixed(2)).join(","));
+  });
+  return out.join("\n");
+}
+
+function parse(txt){
+  const L=txt.trim().split(/\r?\n/).filter(x=>x.trim());
+  if(L.length<20)throw new Error("Poucas linhas: use pelo menos 20 dias de dados.");
+  const sep=L[0].includes(";")?";":",";
+  const H=L[0].split(sep).map(x=>x.trim().toUpperCase());
+  const out=L.slice(1).map(l=>{
+    const c=l.split(sep),o={date:(c[0]||"").trim()};
+    H.forEach((h,i)=>{if(i)o[h]=parseFloat((c[i]||"").trim().replace(sep===";"?",":"",sep===";"?".":""))});
+    return o;
+  });
+  const found=K.filter(k=>H.includes(k)&&out.every(o=>isFinite(o[k])));
+  if(!found.length)throw new Error("Nenhuma coluna válida. Use os cabeçalhos: "+K.join(", ")+".");
+  return out;
+}
+
+function zs(a,t,N){
+  let m=0,v=0;
+  for(let j=t-N+1;j<=t;j++)m+=a[j];m/=N;
+  for(let j=t-N+1;j<=t;j++)v+=(a[j]-m)**2;v=Math.sqrt(v/N);
+  return v?(a[t]-m)/v:0;
+}
+
+function buildTable(){
+  $("#tb").innerHTML=K.map(k=>`<div class="dr"><span>${NM[k]}<br><span class="hd">${SG[k]>0?"sobe = dólar sobe":"sobe = dólar cai"}</span></span><input type="number" id="w_${k}" value="${W[k]}" step="0.5" min="0"><b id="c_${k}">-</b></div>`).join("");
+  $("#tb").addEventListener("input",calc);
+}
+
+function calc(){
+  const N=Math.min(250,Math.max(10,+$("#win").value||60)),T=Math.max(.1,+$("#thr").value||.5);
+  K.forEach(k=>W[k]=Math.max(0,+$("#w_"+k).value||0));
+  const col={};
+  K.concat("USDBRL").forEach(k=>{const a=rows.map(r=>r[k]);if(a.every(isFinite))col[k]=a});
+  const pres=K.filter(k=>col[k]),sw=pres.reduce((s,k)=>s+W[k],0)||1,M=rows.length;
+  if(M<N+5){$("#msg").textContent="Dados insuficientes para essa janela.";return}
+  const idx=[],ub=[],last=M-1;
+  for(let t=N-1;t<M;t++){
+    let v=0;pres.forEach(k=>v+=W[k]*SG[k]*zs(col[k],t,N));
+    idx.push(Math.max(-3,Math.min(3,v/sw)));
+    if(col.USDBRL)ub.push(zs(col.USDBRL,t,N));
+  }
+  const cur=idx[idx.length-1],st=cur>T?"up":cur<-T?"dn":"ne";
+  $("#big").className=st;$("#big").textContent=(cur>0?"+":"")+cur.toFixed(2);
+  $("#lab").className=st;
+  $("#lab").textContent=st==="up"?"ALTA: viés de compra":st==="dn"?"BAIXA: viés de venda":"NEUTRO";
+  const prev=idx[Math.max(0,idx.length-6)];
+  $("#sub").textContent="Há 5 dias: "+(prev>0?"+":"")+prev.toFixed(2)+" · Referência: "+rows[last].date+" · "+pres.length+" drivers";
+  K.forEach(k=>{const e=$("#c_"+k);if(!col[k]){e.textContent="-";e.className="";return}
+    const c=W[k]*SG[k]*zs(col[k],last,N)/sw;e.textContent=(c>0?"+":"")+c.toFixed(2);e.className=c>0.02?"up":c<-0.02?"dn":"ne"});
+  draw(idx,ub,T,rows.slice(N-1).map(r=>r.date));
+  $("#lgb").style.display=col.USDBRL?"":"none";
+}
+
+function draw(idx,ub,T,ds){
+  const w=360,h=200,l=30,r=8,tp=8,b=20,m=idx.length;
+  let Y=Math.max(1.5,T,...idx.map(Math.abs),...ub.map(Math.abs));Y=Math.ceil(Y*2)/2;
+  const x=i=>l+i/(m-1)*(w-l-r),y=v=>tp+(1-(v+Y)/(2*Y))*(h-tp-b);
+  const path=a=>a.map((v,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(v).toFixed(1)).join("");
+  const gl=[-Y,0,Y].map(v=>`<line x1="${l}" x2="${w-r}" y1="${y(v)}" y2="${y(v)}" style="stroke:var(--ln)"/><text x="${l-4}" y="${y(v)+3}" text-anchor="end" font-size="9" style="fill:var(--mut)">${v}</text>`).join("");
+  const th=`<line x1="${l}" x2="${w-r}" y1="${y(T)}" y2="${y(T)}" stroke-dasharray="3 3" style="stroke:var(--up)"/><line x1="${l}" x2="${w-r}" y1="${y(-T)}" y2="${y(-T)}" stroke-dasharray="3 3" style="stroke:var(--dn)"/>`;
+  const g=ub.length?`<path d="${path(ub)}" fill="none" stroke-width="1.2" style="stroke:var(--gr)"/>`:"";
+  const lastv=idx[m-1];
+  $("#ch").innerHTML=gl+th+g+`<path d="${path(idx)}" fill="none" stroke-width="2" stroke-linejoin="round" style="stroke:var(--ix)"/><circle cx="${x(m-1)}" cy="${y(lastv)}" r="3.5" style="fill:var(--ix)"/><text x="${l}" y="${h-5}" font-size="9" style="fill:var(--mut)">${ds[0]}</text><text x="${w-r}" y="${h-5}" font-size="9" text-anchor="end" style="fill:var(--mut)">${ds[m-1]}</text>`;
+}
+
+function apply(txt,isDemo){
+  try{
+    rows=parse(txt);demo=isDemo;
+    $("#msg").textContent=isDemo?"":"Dados aplicados: "+rows.length+" linhas.";
+    $("#src").textContent=isDemo?"Dados de exemplo (simulados). Cole seus dados reais abaixo para usar de verdade.":"Usando os dados que você colou.";
+    calc();
+  }catch(e){$("#msg").textContent=e.message}
+}
+
+buildTable();
+$("#csv").value=genDemo();
+$("#ap").onclick=()=>apply($("#csv").value,false);
+["win","thr"].forEach(i=>$("#"+i).addEventListener("input",()=>rows.length&&calc()));
+apply($("#csv").value,true);
+
+const CD="vencimento,hoje,1d,1s,1m\nJAN27,14.55,14.52,14.48,14.30\nJAN28,14.20,14.15,14.08,13.85\nJAN29,14.10,14.03,13.95,13.70\nJAN30,14.15,14.07,13.98,13.72\nJAN31,14.22,14.13,14.03,13.78\nJAN33,14.35,14.25,14.12,13.85";
+function cparse(t){
+  const L=t.trim().split(/\r?\n/).filter(x=>x.trim());
+  if(L.length<3)throw new Error("Informe pelo menos 2 vencimentos, além do cabeçalho.");
+  const sep=L[0].includes(";")?";":",";
+  return L.slice(1).map(l=>{
+    const c=l.split(sep).map(x=>x.trim());
+    const n=c.slice(1,5).map(x=>parseFloat(sep===";"?x.replace(",","."):x));
+    if(n.length<4||n.some(v=>!isFinite(v)))throw new Error("Linha inválida: "+l);
+    return{v:c[0],n};
+  });
+}
+function cdraw(cv){
+  const bp=(a,b)=>Math.round((a-b)*100),f=v=>(v>0?"+":"")+v,cl=v=>v>0?"up":v<0?"dn":"ne";
+  $("#ct").innerHTML="<tr><th>Vencimento</th><th>Hoje (% a.a.)</th><th>1 dia (bps)</th><th>1 sem (bps)</th><th>1 mês (bps)</th></tr>"+
+    cv.map(o=>`<tr><td>${o.v}</td><td>${o.n[0].toFixed(2)}</td>${[1,2,3].map(k=>{const d=bp(o.n[0],o.n[k]);return `<td class="${cl(d)}">${f(d)}</td>`}).join("")}</tr>`).join("");
+  const a=cv[0],z=cv[cv.length-1],sn=bp(z.n[0],a.n[0]),sm=bp(z.n[3],a.n[3]);
+  $("#cslope").textContent="Inclinação ("+z.v+" menos "+a.v+"): "+f(sn)+" bps hoje, contra "+f(sm)+" bps há 1 mês ("+f(sn-sm)+" bps de variação). Inclinação subindo indica curva abrindo, com prêmio de risco maior nos vencimentos longos.";
+  const w=360,h=160,l=32,r=8,tp=8,b=20,m=cv.length;
+  const vals=cv.flatMap(o=>[o.n[0],o.n[3]]);
+  let lo=Math.floor(Math.min(...vals)*4)/4,hi=Math.ceil(Math.max(...vals)*4)/4;if(hi===lo)hi=lo+.25;
+  const x=i=>l+i/(m-1)*(w-l-r),y=v=>tp+(1-(v-lo)/(hi-lo))*(h-tp-b);
+  const P=k=>cv.map((o,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(o.n[k]).toFixed(1)).join("");
+  const gl=[lo,hi].map(v=>`<line x1="${l}" x2="${w-r}" y1="${y(v)}" y2="${y(v)}" style="stroke:var(--ln)"/><text x="${l-4}" y="${y(v)+3}" text-anchor="end" font-size="9" style="fill:var(--mut)">${v.toFixed(2)}</text>`).join("");
+  const xl=cv.map((o,i)=>`<text x="${x(i)}" y="${h-5}" font-size="9" text-anchor="middle" style="fill:var(--mut)">${o.v}</text>`).join("");
+  const dots=cv.map((o,i)=>`<circle cx="${x(i)}" cy="${y(o.n[0])}" r="3" style="fill:var(--ix)"/>`).join("");
+  $("#cc").innerHTML=gl+`<path d="${P(3)}" fill="none" stroke-width="1.5" style="stroke:var(--gr)"/><path d="${P(0)}" fill="none" stroke-width="2" stroke-linejoin="round" style="stroke:var(--ix)"/>`+dots+xl;
+}
+function capply(t,isDemo){
+  try{
+    cdraw(cparse(t));
+    $("#cmsg").textContent=isDemo?"":"Curva aplicada.";
+    $("#csrc").textContent=isDemo?"Dados de exemplo (simulados). Cole a curva real abaixo.":"Usando a curva que você colou.";
+  }catch(e){$("#cmsg").textContent=e.message}
+}
+$("#ccsv").value=CD;
+$("#cap").onclick=()=>capply($("#ccsv").value,false);
+capply(CD,true);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function renderNews(n){
+  $("#nw").innerHTML=n.map(x=>{
+    const c=x.impacto==="alta"?"up":x.impacto==="baixa"?"dn":"ne",t=x.impacto==="alta"?"Pressão de alta":x.impacto==="baixa"?"Pressão de baixa":"Neutro";
+    const lk=/^https?:/.test(x.link)?x.link:"#";
+    return `<div class="nw"><b class="${c}">${t}</b> <a href="${esc(lk)}" target="_blank" rel="noopener">${esc(x.titulo)}</a><div class="hd">${esc(x.fonte||"")}${x.motivo?" · "+esc(x.motivo):""}</div></div>`}).join("");
+}
+fetch("data.json",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(j=>{
+  if(j.csv){$("#csv").value=j.csv;apply(j.csv,false);$("#msg").textContent="";$("#src").textContent="Atualização automática: "+j.updated+" (horário de Brasília)."}
+  if(j.curve){$("#ccsv").value=j.curve;capply(j.curve,false);$("#cmsg").textContent="";$("#csrc").textContent="Curva atualizada em "+j.updated+"."}
+  if(j.news&&j.news.length)renderNews(j.news);
+}).catch(()=>{});
+</script>
+</body>
+</html>
